@@ -1,10 +1,13 @@
 package com.example.demo.instructor.entity;
 
+import com.example.demo.group.entity.Group;
 import com.example.demo.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "instructors")
@@ -27,6 +30,8 @@ public class Instructor {
     private String rank;
     private String specialization;
     private LocalDateTime createdAt;
+    @ManyToMany(mappedBy = "instructors")
+    private Set<Group> groups = new HashSet<>();
 
     @PrePersist
     public void prePersist() {

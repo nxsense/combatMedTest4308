@@ -16,3 +16,9 @@ app:
   jwt:
     secret: "my-super-secret-key-12345678901234567890"
     expiration-ms: 86400000
+
+    recommendation:
+        weights:
+          problem: 0.6
+          difficulty: 0.2
+          criticality: 0.2

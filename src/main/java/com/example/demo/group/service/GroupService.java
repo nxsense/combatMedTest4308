@@ -9,6 +9,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -24,11 +26,12 @@ public class GroupService {
         group.setTrainingLevel(request.trainingLevel());
         group.setCreatedAt(LocalDateTime.now());
 
-        if (request.instructorId() != null) {
-            Instructor instructor = instructorRepository.findById(request.instructorId())
-                    .orElseThrow(() -> new RuntimeException("Instructor not found"));
+        if (request.instructorIds() != null && !request.instructorIds().isEmpty()) {
+            Set<Instructor> instructors = new HashSet<>(
+                    instructorRepository.findAllById(request.instructorIds())
+            );
 
-            group.setInstructor(instructor);
+            group.setInstructors(instructors);
         }
 
         return groupRepository.save(group);
