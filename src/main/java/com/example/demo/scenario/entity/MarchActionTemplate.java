@@ -1,8 +1,6 @@
 package com.example.demo.scenario.entity;
 
-import com.example.demo.scenario.enums.ExpectedActionType;
-import com.example.demo.scenario.enums.MarchActionTrigger;
-import com.example.demo.scenario.enums.TcccStage;
+import com.example.demo.scenario.enums.*;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -45,4 +43,19 @@ public class MarchActionTemplate {
 
     @Column(nullable = false)
     private Boolean active;
+    @Enumerated(EnumType.STRING)
+    private InjuryRegion injuryRegion;
+
+    @Enumerated(EnumType.STRING)
+    private InjurySeverity injurySeverity;
+
+    @Enumerated(EnumType.STRING)
+    private InjuryMechanism injuryMechanism;
+
+    @Enumerated(EnumType.STRING)
+    private DifficultyLevel minDifficultyLevel;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "manipulation_id")
+    private Manipulation manipulation;
 }

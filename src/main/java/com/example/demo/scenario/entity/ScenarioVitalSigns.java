@@ -1,5 +1,6 @@
 package com.example.demo.scenario.entity;
 
+import com.example.demo.scenario.enums.AVPUScale;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -34,12 +35,13 @@ public class ScenarioVitalSigns {
 
     private Integer spo2;
 
-    @Column(name = "consciousness_level")
-    private String consciousnessLevel;
+    @Enumerated(EnumType.STRING)
+    private AVPUScale consciousnessLevel;
 
     @Column(name = "skin_condition")
     private String skinCondition;
 
     @Column(name = "pain_level")
     private Integer painLevel;
+
 }

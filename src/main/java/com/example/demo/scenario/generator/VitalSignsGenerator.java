@@ -2,6 +2,7 @@ package com.example.demo.scenario.generator;
 
 import com.example.demo.scenario.dto.ScenarioInjuryRequest;
 import com.example.demo.scenario.entity.ScenarioVitalSigns;
+import com.example.demo.scenario.enums.AVPUScale;
 import com.example.demo.scenario.enums.DifficultyLevel;
 import com.example.demo.scenario.enums.InjurySeverity;
 import org.springframework.stereotype.Component;
@@ -130,7 +131,8 @@ public class VitalSignsGenerator {
                 MIN_PAIN_LEVEL,
                 MAX_PAIN_LEVEL
         );
-
+        boolean consciousnessAffected = injuries.stream()
+                .anyMatch(i -> Boolean.TRUE.equals(i.consciousnessAffected()));
         return ScenarioVitalSigns.builder()
                 .heartRate(hr)
                 .systolicBp(sys)
@@ -139,7 +141,7 @@ public class VitalSignsGenerator {
                 .spo2(spo2)
                 .painLevel(pain)
                 .consciousnessLevel(
-                        consciousnessLevel(sys, spo2, hr)
+                        determineConsciousness(sys, spo2, consciousnessAffected)
                 )
                 .skinCondition(
                         skinCondition(sys, injuries)
@@ -209,30 +211,25 @@ public class VitalSignsGenerator {
         );
     }
 
-    private String consciousnessLevel(
+    private AVPUScale determineConsciousness(
             int systolicBp,
             int spo2,
-            int heartRate
+            boolean consciousnessAffected
     ) {
 
-        if (
-                systolicBp < CRITICAL_SYS_BP
-                        || spo2 < CRITICAL_SPO2
-        ) {
-
-            return "Порушена свідомість";
+        if (systolicBp < 60 || spo2 < 75) {
+            return AVPUScale.UNRESPONSIVE;
         }
 
-        if (
-                systolicBp < WARNING_SYS_BP
-                        || spo2 < WARNING_SPO2
-                        || heartRate > WARNING_HR
-        ) {
-
-            return "Сплутана свідомість";
+        if (systolicBp < 80 || spo2 < 85) {
+            return AVPUScale.PAIN;
         }
 
-        return "При свідомості";
+        if (consciousnessAffected) {
+            return AVPUScale.VERBAL;
+        }
+
+        return AVPUScale.ALERT;
     }
 
     private String skinCondition(

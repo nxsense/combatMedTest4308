@@ -27,7 +27,8 @@ public class ScenarioMapper {
                 mapVitalSigns(scenario.getVitalSigns()),
                 mapExpectedActions(scenario),
                 mapLabels(scenario),
-                scenario.getCreatedAt()
+                scenario.getCreatedAt(),
+                scenario.getNarrative()
         );
     }
 

@@ -40,6 +40,9 @@ public class TrainingScenario {
     @Column(nullable = false)
     private ScenarioSource source;
 
+    @Column(columnDefinition = "TEXT")
+    private String narrative;
+
     @OneToMany(
             mappedBy = "scenario",
             cascade = CascadeType.ALL,

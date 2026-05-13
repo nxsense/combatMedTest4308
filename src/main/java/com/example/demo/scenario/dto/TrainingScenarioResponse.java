@@ -17,6 +17,7 @@ public record TrainingScenarioResponse(
         ScenarioVitalSignsResponse vitalSigns,
         List<ScenarioExpectedActionResponse> expectedActions,
         Set<String> labels,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        String narrative
 ) {
 }

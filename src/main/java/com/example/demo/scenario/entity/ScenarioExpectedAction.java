@@ -36,7 +36,7 @@ public class ScenarioExpectedAction {
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    @ManyToOne
+    @ManyToOne (fetch = FetchType.LAZY)
     @JoinColumn(name = "manipulation_id")
     private Manipulation manipulation;
 

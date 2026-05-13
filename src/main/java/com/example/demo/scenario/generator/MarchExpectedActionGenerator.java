@@ -1,259 +1,75 @@
 package com.example.demo.scenario.generator;
 
-import com.example.demo.scenario.dto.ScenarioInjuryRequest;
+import com.example.demo.scenario.entity.MarchActionTemplate;
 import com.example.demo.scenario.entity.ScenarioExpectedAction;
-import com.example.demo.scenario.enums.ExpectedActionType;
-import com.example.demo.scenario.enums.TcccStage;
-import org.springframework.stereotype.Component;
+import com.example.demo.scenario.entity.ScenarioInjury;
+import com.example.demo.scenario.entity.TrainingScenario;
+import com.example.demo.scenario.enums.MarchActionTrigger;
+import com.example.demo.scenario.repository.MarchActionTemplateRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
-@Component
+@Service
+@RequiredArgsConstructor
 public class MarchExpectedActionGenerator {
 
+    private final MarchActionTemplateRepository templateRepository;
+
     public List<ScenarioExpectedAction> generate(
-            List<ScenarioInjuryRequest> injuries
+            TrainingScenario scenario,
+            List<ScenarioInjury> injuries
     ) {
+        Set<MarchActionTrigger> triggers = resolveTriggers(injuries);
 
-        List<ScenarioExpectedAction> actions =
-                new ArrayList<>();
+        return templateRepository.findByActiveTrueOrderByDefaultOrderAsc()
+                .stream()
+                .filter(template -> triggers.contains(template.getTriggerCondition()))
+                .map(template -> toExpectedAction(scenario, template))
+                .toList();
+    }
 
-        int order = 1;
+    private Set<MarchActionTrigger> resolveTriggers(List<ScenarioInjury> injuries) {
+        Set<MarchActionTrigger> triggers = EnumSet.of(MarchActionTrigger.ALWAYS);
 
-        // MARCH baseline assessment
+        for (ScenarioInjury injury : injuries) {
+            if (Boolean.TRUE.equals(injury.getActiveBleeding())) {
+                triggers.add(MarchActionTrigger.ACTIVE_BLEEDING);
+            }
 
-        actions.add(
-                assessment(
-                        TcccStage.M,
-                        "Огляд на масивну кровотечу",
-                        order++,
-                        true
-                )
-        );
+            if (Boolean.TRUE.equals(injury.getAirwayCompromised())) {
+                triggers.add(MarchActionTrigger.AIRWAY_COMPROMISED);
+            }
 
-        boolean hasMassiveBleeding = injuries.stream()
-                .anyMatch(
-                        injury ->
-                                Boolean.TRUE.equals(
-                                        injury.activeBleeding()
-                                )
-                );
+            if (Boolean.TRUE.equals(injury.getBreathingCompromised())) {
+                triggers.add(MarchActionTrigger.BREATHING_COMPROMISED);
+            }
 
-        if (hasMassiveBleeding) {
-
-            actions.add(
-                    decision(
-                            TcccStage.M,
-                            "Визначення критичної кровотечі",
-                            order++,
-                            true
-                    )
-            );
-
-            actions.add(
-                    manipulation(
-                            TcccStage.M,
-                            "Контроль масивної кровотечі",
-                            order++,
-                            true
-                    )
-            );
-
-            actions.add(
-                    reassessment(
-                            TcccStage.M,
-                            "Перевірка ефективності контролю кровотечі",
-                            order++,
-                            true
-                    )
-            );
+            if (Boolean.TRUE.equals(injury.getConsciousnessAffected())) {
+                triggers.add(MarchActionTrigger.CONSCIOUSNESS_AFFECTED);
+            }
         }
 
-        // A
-
-        actions.add(
-                assessment(
-                        TcccStage.A,
-                        "Оцінка прохідності дихальних шляхів",
-                        order++,
-                        true
-                )
-        );
-
-        boolean airwayProblem = injuries.stream()
-                .anyMatch(
-                        injury ->
-                                Boolean.TRUE.equals(
-                                        injury.airwayCompromised()
-                                )
-                );
-
-        if (airwayProblem) {
-
-            actions.add(
-                    decision(
-                            TcccStage.A,
-                            "Визначення проблеми дихальних шляхів",
-                            order++,
-                            true
-                    )
-            );
-
-            actions.add(
-                    manipulation(
-                            TcccStage.A,
-                            "Відновлення прохідності дихальних шляхів",
-                            order++,
-                            true
-                    )
-            );
-
-            actions.add(
-                    reassessment(
-                            TcccStage.A,
-                            "Повторна оцінка дихальних шляхів",
-                            order++,
-                            true
-                    )
-            );
-        }
-
-        // R
-
-        actions.add(
-                assessment(
-                        TcccStage.R,
-                        "Оцінка дихання та грудної клітки",
-                        order++,
-                        true
-                )
-        );
-
-        boolean breathingProblem = injuries.stream()
-                .anyMatch(
-                        injury ->
-                                Boolean.TRUE.equals(
-                                        injury.breathingCompromised()
-                                )
-                );
-
-        if (breathingProblem) {
-
-            actions.add(
-                    decision(
-                            TcccStage.R,
-                            "Визначення проблеми дихання",
-                            order++,
-                            true
-                    )
-            );
-
-            actions.add(
-                    manipulation(
-                            TcccStage.R,
-                            "Корекція порушення дихання",
-                            order++,
-                            true
-                    )
-            );
-
-            actions.add(
-                    reassessment(
-                            TcccStage.R,
-                            "Повторна оцінка дихання",
-                            order++,
-                            true
-                    )
-            );
-        }
-
-        // C
-
-        actions.add(
-                assessment(
-                        TcccStage.C,
-                        "Оцінка кровообігу",
-                        order++,
-                        false
-                )
-        );
-
-        // H
-
-        actions.add(
-                assessment(
-                        TcccStage.H,
-                        "Профілактика гіпотермії",
-                        order++,
-                        false
-                )
-        );
-
-        return actions;
+        return triggers;
     }
 
-    private ScenarioExpectedAction assessment(
-            TcccStage stage,
-            String title,
-            int order,
-            boolean critical
+    private ScenarioExpectedAction toExpectedAction(
+            TrainingScenario scenario,
+            MarchActionTemplate template
     ) {
-
         return ScenarioExpectedAction.builder()
-                .tcccStage(stage)
-                .actionType(ExpectedActionType.ASSESSMENT)
-                .title(title)
-                .priorityOrder(order)
-                .critical(critical)
-                .build();
-    }
-
-    private ScenarioExpectedAction decision(
-            TcccStage stage,
-            String title,
-            int order,
-            boolean critical
-    ) {
-
-        return ScenarioExpectedAction.builder()
-                .tcccStage(stage)
-                .actionType(ExpectedActionType.DECISION)
-                .title(title)
-                .priorityOrder(order)
-                .critical(critical)
-                .build();
-    }
-
-    private ScenarioExpectedAction manipulation(
-            TcccStage stage,
-            String title,
-            int order,
-            boolean critical
-    ) {
-
-        return ScenarioExpectedAction.builder()
-                .tcccStage(stage)
-                .actionType(ExpectedActionType.MANIPULATION)
-                .title(title)
-                .priorityOrder(order)
-                .critical(critical)
-                .build();
-    }
-
-    private ScenarioExpectedAction reassessment(
-            TcccStage stage,
-            String title,
-            int order,
-            boolean critical
-    ) {
-
-        return ScenarioExpectedAction.builder()
-                .tcccStage(stage)
-                .actionType(ExpectedActionType.REASSESSMENT)
-                .title(title)
-                .priorityOrder(order)
-                .critical(critical)
+                .scenario(scenario)
+                .tcccStage(template.getTcccStage())
+                .actionType(template.getActionType())
+                .title(template.getTitle())
+                .description(template.getDescription())
+                .priorityOrder(template.getDefaultOrder())
+                .critical(template.getDefaultCritical())
+                .rationale("Generated from MARCH action template: " + template.getTriggerCondition())
+                .manipulation(template.getManipulation())
                 .build();
     }
 }
