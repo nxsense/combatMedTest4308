@@ -24,36 +24,46 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final UserRepository userRepository;
 
     @Override
-    protected void doFilterInternal(
+    protected boolean shouldNotFilter(HttpServletRequest request) {
 
+        String path = request.getServletPath();
+
+        return path.startsWith("/auth")
+                || path.startsWith("/swagger-ui")
+                || path.startsWith("/v3/api-docs");
+    }
+
+    @Override
+    protected void doFilterInternal(
             HttpServletRequest request,
             HttpServletResponse response,
             FilterChain filterChain
     ) throws ServletException, IOException {
 
-        String path = request.getServletPath();
         String header = request.getHeader("Authorization");
 
-
-        if (path.startsWith("/auth")) {
-            filterChain.doFilter(request, response);
-            return;
-        }
         if (header == null || !header.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
         }
 
         String token = header.substring(7);
+
         String username = jwtService.extractUsername(token);
 
         User user = userRepository.findByUsername(username).orElse(null);
 
-        if (user != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+        if (user != null
+                && SecurityContextHolder.getContext().getAuthentication() == null) {
+
             var auth = new UsernamePasswordAuthenticationToken(
                     user.getUsername(),
                     null,
-                    List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().getName()))
+                    List.of(
+                            new SimpleGrantedAuthority(
+                                    "ROLE_" + user.getRole().getName()
+                            )
+                    )
             );
 
             SecurityContextHolder.getContext().setAuthentication(auth);

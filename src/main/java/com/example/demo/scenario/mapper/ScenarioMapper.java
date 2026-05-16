@@ -59,18 +59,35 @@ public class ScenarioMapper {
         return scenario.getExpectedActions()
                 .stream()
                 .sorted(Comparator.comparing(
-                        ScenarioExpectedAction::getPriorityOrder
+                        ScenarioExpectedAction::getPriorityOrder,
+                        Comparator.nullsLast(Integer::compareTo)
                 ))
-                .map(action -> new ScenarioExpectedActionResponse(
-                        action.getId(),
-                        action.getTcccStage(),
-                        action.getActionType(),
-                        action.getTitle(),
-                        action.getDescription(),
-                        action.getPriorityOrder(),
-                        action.getCritical(),
-                        action.getRationale()
-                ))
+                .map(action -> {
+
+                    Long manipulationId = null;
+                    String manipulationCode = null;
+                    String manipulationTitle = null;
+
+                    if (action.getManipulation() != null) {
+                        manipulationId = action.getManipulation().getId();
+                        manipulationCode = action.getManipulation().getCode();
+                        manipulationTitle = action.getManipulation().getTitle();
+                    }
+
+                    return new ScenarioExpectedActionResponse(
+                            action.getId(),
+                            action.getTcccStage(),
+                            action.getActionType(),
+                            action.getTitle(),
+                            action.getDescription(),
+                            action.getPriorityOrder(),
+                            action.getCritical(),
+                            action.getRationale(),
+                            manipulationId,
+                            manipulationCode,
+                            manipulationTitle
+                    );
+                })
                 .toList();
     }
 

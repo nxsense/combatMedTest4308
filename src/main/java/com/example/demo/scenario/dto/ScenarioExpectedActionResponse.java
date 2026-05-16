@@ -11,6 +11,9 @@ public record ScenarioExpectedActionResponse(
         String description,
         Integer priorityOrder,
         Boolean critical,
-        String rationale
+        String rationale,
+        Long manipulationId,
+        String manipulationCode,
+        String manipulationTitle
 ) {
 }

@@ -4,5 +4,11 @@ public enum ExpectedActionType {
     ASSESSMENT,
     DECISION,
     MANIPULATION,
-    REASSESSMENT
+    REASSESSMENT,
+
+    COMMUNICATION,
+
+    DOCUMENTATION,
+
+    EVACUATION
 }
