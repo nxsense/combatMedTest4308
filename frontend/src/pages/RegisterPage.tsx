@@ -17,7 +17,10 @@ export default function RegisterPage() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
 
-    function updateField<K extends keyof RegisterRequest>(field: K, value: RegisterRequest[K]) {
+    function updateField<K extends keyof RegisterRequest>(
+        field: K,
+        value: RegisterRequest[K],
+    ) {
         setForm((prev) => ({
             ...prev,
             [field]: value,
