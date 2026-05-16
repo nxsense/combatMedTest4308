@@ -23,6 +23,9 @@ export type InjuryRegion =
     | 'LOWER_LIMB'
 
 export type InjurySeverity = 'MINOR' | 'MODERATE' | 'SEVERE' | 'CRITICAL'
+export type AVPUScale = 'A' | 'V' | 'P' | 'U'
+export type TcccStage = 'M' | 'A' | 'R' | 'C' | 'H'
+export type ExpectedActionType = 'MANIPULATION' | 'ASSESSMENT' | 'DECISION'
 
 export interface ScenarioInjuryRequest {
     mechanism: InjuryMechanism
@@ -40,6 +43,40 @@ export interface ScenarioGenerateRequest {
     difficultyLevel: DifficultyLevel
     labelIds: number[]
     injuries: ScenarioInjuryRequest[]
+}
+
+export interface ScenarioVitalSignsRequest {
+    heartRate: number
+    systolicBp: number
+    diastolicBp: number
+    respiratoryRate: number
+    spo2: number
+    consciousnessLevel: AVPUScale
+    skinCondition: string
+    painLevel: number
+}
+
+export interface ScenarioExpectedActionRequest {
+    tcccStage: TcccStage
+    actionType: ExpectedActionType
+    title: string
+    description: string
+    manipulationId: number | null
+    priorityOrder: number
+    critical: boolean
+    rationale: string
+}
+
+export interface ScenarioManualCreateRequest {
+    title: string
+    legend: string
+    scenarioFlowNotes: string
+    difficultyLevel: DifficultyLevel
+    vitalSigns: ScenarioVitalSignsRequest
+    injuries: ScenarioInjuryRequest[]
+    expectedActions: ScenarioExpectedActionRequest[]
+    labelIds: number[]
+    narrative: string
 }
 
 export interface ScenarioExpectedAction {
@@ -142,4 +179,52 @@ export interface ScenarioSessionSummaryResponse {
 export interface ScenarioPenaltyRequest {
     points: number
     reason: string
+}
+
+export interface Manipulation {
+    id: number
+    code: string
+    title: string
+    description: string
+}
+
+export interface ScenarioVitalSignsRequest {
+    heartRate: number
+    systolicBp: number
+    diastolicBp: number
+    respiratoryRate: number
+    spo2: number
+    consciousnessLevel: AVPUScale
+    skinCondition: string
+    painLevel: number
+}
+
+export interface ScenarioExpectedActionRequest {
+    tcccStage: TcccStage
+    actionType: ExpectedActionType
+    title: string
+    description: string
+    manipulationId: number | null
+    priorityOrder: number
+    critical: boolean
+    rationale: string
+}
+
+export interface ScenarioManualCreateRequest {
+    title: string
+    legend: string
+    scenarioFlowNotes: string
+    difficultyLevel: DifficultyLevel
+    vitalSigns: ScenarioVitalSignsRequest
+    injuries: ScenarioInjuryRequest[]
+    expectedActions: ScenarioExpectedActionRequest[]
+    labelIds: number[]
+    narrative: string
+}
+
+export interface Manipulation {
+    id: number
+    code: string
+    title: string
+    description: string
 }
