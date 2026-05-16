@@ -6,6 +6,8 @@ import java.util.List;
 
 public interface AnalyticsService {
 
+    DashboardAnalyticsDto getDashboardAnalytics();
+
     TestAnalyticsDto getGeneralTestAnalytics();
 
     CadetTestAnalyticsDto getCadetTestAnalytics(Long cadetId);
@@ -18,6 +20,5 @@ public interface AnalyticsService {
 
     List<PracticalSkillLabelAnalyticsDto> getPracticalLabelAnalytics();
 
-    List<WeakLabelAnalyticsDto>
-    getWeakTestLabels(Long cadetId);
+    List<WeakLabelAnalyticsDto> getWeakTestLabels(Long cadetId);
 }

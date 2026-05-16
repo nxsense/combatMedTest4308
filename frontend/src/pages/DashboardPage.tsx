@@ -1,256 +1,137 @@
+import { useEffect, useState } from 'react'
+import { getDashboardAnalytics } from '../features/analytics/analyticsApi'
+import type { DashboardAnalytics } from '../types/analytics'
+
+function formatPercent(value: number) {
+    return `${Number.isFinite(value) ? value.toFixed(1) : '0.0'}%`
+}
+
+function StatCard({
+                      title,
+                      value,
+                      subtitle,
+                  }: {
+    title: string
+    value: string | number
+    subtitle: string
+}) {
+    return (
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 shadow-md">
+            <p className="text-xs uppercase tracking-wide text-zinc-500">{title}</p>
+            <p className="mt-2 text-2xl font-bold text-white">{value}</p>
+            <p className="mt-1 text-xs text-zinc-400">{subtitle}</p>
+        </div>
+    )
+}
+
 export default function DashboardPage() {
+    const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null)
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState('')
+
+    useEffect(() => {
+        getDashboardAnalytics()
+            .then(setAnalytics)
+            .catch(() => setError('Failed to load dashboard analytics'))
+            .finally(() => setLoading(false))
+    }, [])
+
+    if (loading) {
+        return <div className="text-zinc-300">Loading dashboard...</div>
+    }
+
+    if (error || !analytics) {
+        return (
+            <div className="rounded-2xl border border-red-900 bg-red-950/30 p-6 text-red-200">
+                {error || 'Dashboard analytics unavailable'}
+            </div>
+        )
+    }
 
     return (
-        <div>
-
-            <div className="mb-10">
-
-                <h1 className="text-5xl font-bold">
-                    CombatMed Dashboard
-                </h1>
-
-                <p className="mt-3 text-zinc-400">
-                    Tactical Combat Casualty Care training platform
+        <div className="space-y-6">
+            <section>
+                <h1 className="text-3xl font-bold text-white">CombatMed Dashboard</h1>
+                <p className="mt-2 text-zinc-400">
+                    Tactical Combat Casualty Care training platform with real simulator statistics.
                 </p>
+            </section>
 
-            </div>
+            <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                <StatCard
+                    title="Cadets"
+                    value={analytics.totalCadets}
+                    subtitle="Registered trainees"
+                />
 
-            <div className="grid gap-6 lg:grid-cols-4">
+                <StatCard
+                    title="Instructors"
+                    value={analytics.totalInstructors}
+                    subtitle="Training supervisors"
+                />
 
-                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
+                <StatCard
+                    title="Scenarios"
+                    value={analytics.totalScenarios}
+                    subtitle="Available TCCC scenarios"
+                />
 
-                    <div className="text-sm text-zinc-400">
-                        Active Scenarios
-                    </div>
+                <StatCard
+                    title="Active Sessions"
+                    value={analytics.activeSessions}
+                    subtitle="Currently running simulations"
+                />
 
-                    <div className="mt-3 text-5xl font-bold text-red-500">
-                        12
-                    </div>
+                <StatCard
+                    title="Completed Sessions"
+                    value={analytics.completedSessions}
+                    subtitle="Finished scenario attempts"
+                />
 
+                <StatCard
+                    title="Scenario Score"
+                    value={formatPercent(analytics.averageScenarioScore)}
+                    subtitle="Average simulator result"
+                />
+
+                <StatCard
+                    title="Test Pass Rate"
+                    value={formatPercent(analytics.testPassRate)}
+                    subtitle={`${analytics.completedTests} completed tests`}
+                />
+
+                <StatCard
+                    title="Practical Pass Rate"
+                    value={formatPercent(analytics.practicalPassRate)}
+                    subtitle={`${analytics.practicalEvaluations} evaluations`}
+                />
+            </section>
+
+            <section className="grid gap-4 lg:grid-cols-3">
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 p-4">
+                    <h2 className="text-lg font-semibold text-white">Scenario Performance</h2>
+                    <p className="mt-3 text-3xl font-bold text-red-400">
+                        {formatPercent(analytics.averageScenarioScore)}
+                    </p>
+                    <p className="mt-1 text-sm text-zinc-400">Average completed scenario score</p>
                 </div>
 
-                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
-
-                    <div className="text-sm text-zinc-400">
-                        Cadets
-                    </div>
-
-                    <div className="mt-3 text-5xl font-bold">
-                        48
-                    </div>
-
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 p-4">
+                    <h2 className="text-lg font-semibold text-white">Knowledge Tests</h2>
+                    <p className="mt-3 text-3xl font-bold text-red-400">
+                        {formatPercent(analytics.averageTestScore)}
+                    </p>
+                    <p className="mt-1 text-sm text-zinc-400">Average test score</p>
                 </div>
 
-                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
-
-                    <div className="text-sm text-zinc-400">
-                        Average Accuracy
-                    </div>
-
-                    <div className="mt-3 text-5xl font-bold text-emerald-400">
-                        84%
-                    </div>
-
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 p-4">
+                    <h2 className="text-lg font-semibold text-white">Practical Skills</h2>
+                    <p className="mt-3 text-3xl font-bold text-red-400">
+                        {formatPercent(analytics.averagePracticalScore)}
+                    </p>
+                    <p className="mt-1 text-sm text-zinc-400">Average practical evaluation score</p>
                 </div>
-
-                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
-
-                    <div className="text-sm text-zinc-400">
-                        Critical Mistakes
-                    </div>
-
-                    <div className="mt-3 text-5xl font-bold text-yellow-400">
-                        7
-                    </div>
-
-                </div>
-
-            </div>
-
-            <div className="mt-8 grid gap-6 lg:grid-cols-2">
-
-                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-8">
-
-                    <h2 className="mb-6 text-2xl font-bold">
-                        Training Modules
-                    </h2>
-
-                    <div className="space-y-4">
-
-                        <div className="rounded-xl bg-zinc-800 p-5">
-                            TCCC Scenarios
-                        </div>
-
-                        <div className="rounded-xl bg-zinc-800 p-5">
-                            Practical Skills
-                        </div>
-
-                        <div className="rounded-xl bg-zinc-800 p-5">
-                            Knowledge Tests
-                        </div>
-
-                        <div className="rounded-xl bg-zinc-800 p-5">
-                            Group Analytics
-                        </div>
-
-                    </div>
-
-                </div>
-
-                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-8">
-
-                    <h2 className="mb-6 text-2xl font-bold">
-                        System Status
-                    </h2>
-
-                    <div className="space-y-5">
-
-                        <div className="flex items-center justify-between">
-
-              <span className="text-zinc-400">
-                Backend API
-              </span>
-
-                            <span className="rounded bg-emerald-700 px-3 py-1 text-sm">
-                ONLINE
-              </span>
-
-                        </div>
-
-                        <div className="flex items-center justify-between">
-
-              <span className="text-zinc-400">
-                Scenario Engine
-              </span>
-
-                            <span className="rounded bg-emerald-700 px-3 py-1 text-sm">
-                ACTIVE
-              </span>
-
-                        </div>
-
-                        <div className="flex items-center justify-between">
-
-              <span className="text-zinc-400">
-                PostgreSQL
-              </span>
-
-                            <span className="rounded bg-emerald-700 px-3 py-1 text-sm">
-                CONNECTED
-              </span>
-
-                        </div>
-
-                        <div className="flex items-center justify-between">
-
-              <span className="text-zinc-400">
-                Simulation Runtime
-              </span>
-
-                            <span className="rounded bg-emerald-700 px-3 py-1 text-sm">
-                READY
-              </span>
-
-                        </div>
-
-                    </div>
-
-                </div>
-
-            </div>
-
-            <div className="mt-8 rounded-2xl border border-zinc-800 bg-zinc-900 p-8">
-
-                <div className="mb-6 flex items-center justify-between">
-
-                    <h2 className="text-2xl font-bold">
-                        Recent Training Activity
-                    </h2>
-
-                    <span className="rounded bg-zinc-800 px-3 py-1 text-sm text-zinc-400">
-      LIVE FEED
-    </span>
-
-                </div>
-
-                <div className="space-y-4">
-
-                    <div className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-800/50 p-4">
-
-                        <div>
-                            <div className="font-semibold">
-                                Blast Injury Scenario
-                            </div>
-
-                            <div className="mt-1 text-sm text-zinc-400">
-                                Cadet #12 completed TCCC intervention
-                            </div>
-                        </div>
-
-                        <div className="text-right">
-                            <div className="text-lg font-bold text-emerald-400">
-                                92%
-                            </div>
-
-                            <div className="text-xs text-zinc-500">
-                                accuracy
-                            </div>
-                        </div>
-
-                    </div>
-
-                    <div className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-800/50 p-4">
-
-                        <div>
-                            <div className="font-semibold">
-                                Airway Management Drill
-                            </div>
-
-                            <div className="mt-1 text-sm text-zinc-400">
-                                Practical skill evaluation completed
-                            </div>
-                        </div>
-
-                        <div className="text-right">
-                            <div className="text-lg font-bold text-yellow-400">
-                                3
-                            </div>
-
-                            <div className="text-xs text-zinc-500">
-                                mistakes
-                            </div>
-                        </div>
-
-                    </div>
-
-                    <div className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-800/50 p-4">
-
-                        <div>
-                            <div className="font-semibold">
-                                Hemorrhage Control Test
-                            </div>
-
-                            <div className="mt-1 text-sm text-zinc-400">
-                                Group Bravo knowledge assessment
-                            </div>
-                        </div>
-
-                        <div className="text-right">
-                            <div className="text-lg font-bold text-cyan-400">
-                                48
-                            </div>
-
-                            <div className="text-xs text-zinc-500">
-                                cadets
-                            </div>
-                        </div>
-
-                    </div>
-
-                </div>
-
-            </div>
-
+            </section>
         </div>
     )
 }

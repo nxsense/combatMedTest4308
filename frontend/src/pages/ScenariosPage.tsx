@@ -535,7 +535,7 @@ export default function ScenariosPage() {
 
                                                     {' '}
 
-                                                    {getExecutionForAction(action.id)?.scoreDelta > 0
+                                                    {(getExecutionForAction(action.id)?.scoreDelta ?? 0) > 0
                                                         ? '+'
                                                         : ''}
 

@@ -45,26 +45,14 @@ public class ScenarioSessionService {
         return toResponse(sessionRepository.save(session));
     }
 
-    private ScenarioSessionResponse toResponse(ScenarioSession session) {
-        return ScenarioSessionResponse.builder()
-                .id(session.getId())
-                .scenarioId(session.getScenario().getId())
-                .cadetId(session.getCadet().getId())
-                .status(session.getStatus())
-                .currentMinute(session.getCurrentMinute())
-                .totalScore(session.getTotalScore())
-                .mistakes(session.getMistakes())
-                .startedAt(session.getStartedAt())
-                .finishedAt(session.getFinishedAt())
-                .build();
-    }
-
     public ScenarioActionExecutionResponse executeAction(
             Long sessionId,
             ScenarioActionExecuteRequest request
     ) {
         ScenarioSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new RuntimeException("Scenario session not found"));
+
+        ensureSessionActive(session);
 
         ScenarioExpectedAction expectedAction = expectedActionRepository
                 .findById(request.getExpectedActionId())
@@ -77,11 +65,7 @@ public class ScenarioSessionService {
         boolean correct = expectedAction.getManipulation() != null
                 && expectedAction.getManipulation().getId().equals(manipulation.getId());
 
-        physiologyEngine.applyManipulationEffects(
-                session,
-                manipulation,
-                correct
-        );
+        physiologyEngine.applyManipulationEffects(session, manipulation, correct);
 
         int scoreDelta = correct ? 10 : -5;
 
@@ -96,12 +80,8 @@ public class ScenarioSessionService {
                 .executedAt(LocalDateTime.now())
                 .build();
 
-        session.setTotalScore(
-                Math.min(
-                        session.getMaxScore(),
-                        session.getTotalScore() + scoreDelta
-                )
-        );
+        int newScore = session.getTotalScore() + scoreDelta;
+        session.setTotalScore(Math.max(0, Math.min(session.getMaxScore(), newScore)));
 
         if (!correct) {
             session.setMistakes(session.getMistakes() + 1);
@@ -110,16 +90,7 @@ public class ScenarioSessionService {
         executionRepository.save(execution);
         sessionRepository.save(session);
 
-        return ScenarioActionExecutionResponse.builder()
-                .id(execution.getId())
-                .sessionId(session.getId())
-                .expectedActionId(expectedAction.getId())
-                .manipulationId(manipulation.getId())
-                .correct(correct)
-                .executionMinute(execution.getExecutionMinute())
-                .scoreDelta(scoreDelta)
-                .notes(execution.getNotes())
-                .build();
+        return toExecutionResponse(execution);
     }
 
     public List<ScenarioActionExecutionResponse> getSessionActions(Long sessionId) {
@@ -130,36 +101,12 @@ public class ScenarioSessionService {
                 .toList();
     }
 
-    private ScenarioActionExecutionResponse toExecutionResponse(
-            ScenarioActionExecution execution
-    ) {
-        return ScenarioActionExecutionResponse.builder()
-                .id(execution.getId())
-                .sessionId(execution.getSession().getId())
-                .expectedActionId(execution.getExpectedAction().getId())
-                .manipulationId(
-                        execution.getManipulation() != null
-                                ? execution.getManipulation().getId()
-                                : null
-                )
-                .correct(execution.getCorrect())
-                .executionMinute(execution.getExecutionMinute())
-                .scoreDelta(execution.getScoreDelta())
-                .notes(execution.getNotes())
-                .build();
-    }
-
-    public ScenarioSessionSummaryResponse getSummary(
-            Long sessionId
-    ) {
-
+    public ScenarioSessionSummaryResponse getSummary(Long sessionId) {
         ScenarioSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new RuntimeException("Session not found"));
 
         List<ScenarioActionExecution> executions =
-                executionRepository.findBySessionIdOrderByExecutionMinuteAscIdAsc(
-                        sessionId
-                );
+                executionRepository.findBySessionIdOrderByExecutionMinuteAscIdAsc(sessionId);
 
         int totalActions = executions.size();
 
@@ -180,13 +127,12 @@ public class ScenarioSessionService {
                 .cadetId(session.getCadet().getId())
                 .status(session.getStatus())
                 .totalScore(session.getTotalScore())
+                .maxScore(session.getMaxScore())
                 .mistakes(session.getMistakes())
                 .totalActions(totalActions)
                 .correctActions(correctActions)
                 .incorrectActions(incorrectActions)
-                .accuracyPercent(
-                        Math.round(accuracy * 100.0) / 100.0
-                )
+                .accuracyPercent(Math.round(accuracy * 100.0) / 100.0)
                 .build();
     }
 
@@ -197,38 +143,70 @@ public class ScenarioSessionService {
         ScenarioSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new RuntimeException("Session not found"));
 
-        int points = request.getPoints() == null
-                ? 0
-                : request.getPoints();
+        ensureSessionActive(session);
 
-        session.setTotalScore(
-                session.getTotalScore() - points
-        );
+        int points = request.getPoints() == null ? 0 : request.getPoints();
 
-        session.setMistakes(
-                session.getMistakes() + 1
-        );
+        session.setTotalScore(Math.max(0, session.getTotalScore() - points));
+        session.setMistakes(session.getMistakes() + 1);
 
-        ScenarioSession saved =
-                sessionRepository.save(session);
-
+        ScenarioSession saved = sessionRepository.save(session);
         return toResponse(saved);
     }
 
-    public ScenarioSessionResponse completeSession(
-            Long sessionId
-    ) {
-        ScenarioSession session =
-                sessionRepository.findById(sessionId)
-                        .orElseThrow();
+    public ScenarioSessionResponse completeSession(Long sessionId) {
+        ScenarioSession session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new RuntimeException("Session not found"));
 
-        session.setStatus(
-                SessionStatus.COMPLETED
-        );
+        if (session.getStatus() == SessionStatus.COMPLETED) {
+            return toResponse(session);
+        }
 
-        ScenarioSession saved =
-                sessionRepository.save(session);
+        ensureSessionActive(session);
 
+        session.setStatus(SessionStatus.COMPLETED);
+        session.setFinishedAt(LocalDateTime.now());
+
+        ScenarioSession saved = sessionRepository.save(session);
         return toResponse(saved);
+    }
+
+    private void ensureSessionActive(ScenarioSession session) {
+        if (session.getStatus() != SessionStatus.ACTIVE) {
+            throw new IllegalStateException("Scenario session is not active");
+        }
+    }
+
+    private ScenarioSessionResponse toResponse(ScenarioSession session) {
+        return ScenarioSessionResponse.builder()
+                .id(session.getId())
+                .scenarioId(session.getScenario().getId())
+                .cadetId(session.getCadet().getId())
+                .status(session.getStatus())
+                .currentMinute(session.getCurrentMinute())
+                .totalScore(session.getTotalScore())
+                .mistakes(session.getMistakes())
+                .startedAt(session.getStartedAt())
+                .finishedAt(session.getFinishedAt())
+                .build();
+    }
+
+    private ScenarioActionExecutionResponse toExecutionResponse(
+            ScenarioActionExecution execution
+    ) {
+        return ScenarioActionExecutionResponse.builder()
+                .id(execution.getId())
+                .sessionId(execution.getSession().getId())
+                .expectedActionId(execution.getExpectedAction().getId())
+                .manipulationId(
+                        execution.getManipulation() != null
+                                ? execution.getManipulation().getId()
+                                : null
+                )
+                .correct(execution.getCorrect())
+                .executionMinute(execution.getExecutionMinute())
+                .scoreDelta(execution.getScoreDelta())
+                .notes(execution.getNotes())
+                .build();
     }
 }

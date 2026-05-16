@@ -34,15 +34,21 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
 
                         // public endpoints
-                        .requestMatchers(
-                                "/api/auth/**",
-                                "/auth/**",
-                                "/swagger-ui/**",
-                                "/swagger-ui.html",
-                                "/v3/api-docs/**"
-                        ).permitAll()
+                        .requestMatchers("/api/auth/**", "/auth/**").permitAll()
+                        .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
 
-                        // everything else secured
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/instructor/**").hasAnyRole("INSTRUCTOR", "ADMIN")
+                        .requestMatchers("/api/cadet/**").hasAnyRole("CADET", "INSTRUCTOR", "ADMIN")
+
+                        .requestMatchers("/api/groups/**").hasAnyRole("INSTRUCTOR", "ADMIN")
+                        .requestMatchers("/api/users/**").hasRole("ADMIN")
+                        .requestMatchers("/api/analytics/**").hasAnyRole("INSTRUCTOR", "ADMIN")
+                        .requestMatchers("/api/scenarios/**").hasAnyRole("CADET", "INSTRUCTOR", "ADMIN")
+                        .requestMatchers("/api/sessions/**").hasAnyRole("CADET", "INSTRUCTOR", "ADMIN")
+                        .requestMatchers("/api/tests/**").hasAnyRole("CADET", "INSTRUCTOR", "ADMIN")
+                        .requestMatchers("/api/practical-skills/**").hasAnyRole("CADET", "INSTRUCTOR", "ADMIN")
+
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(
