@@ -1,10 +1,10 @@
 package com.example.demo.test.controller;
 
 import com.example.demo.test.dto.CreateLabelRequest;
-import com.example.demo.test.entity.Label;
+import com.example.demo.test.dto.LabelResponse;
 import com.example.demo.test.service.LabelService;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,12 +17,13 @@ public class LabelController {
     private final LabelService labelService;
 
     @GetMapping
-    public List<Label> getAll() {
+    public List<LabelResponse> getAllLabels() {
         return labelService.getAll();
     }
 
     @PostMapping
-    public Label create(@Valid @RequestBody CreateLabelRequest request) {
+    @PreAuthorize("hasAnyRole('INSTRUCTOR', 'ADMIN')")
+    public LabelResponse createLabel(@RequestBody CreateLabelRequest request) {
         return labelService.create(request);
     }
 }

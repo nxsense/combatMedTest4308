@@ -48,17 +48,22 @@ public interface TestAnalyticsRepository
         SELECT
             l.id AS labelId,
             l.name AS labelName,
-            COUNT(tr.id) AS attemptsCount,
-            COALESCE(AVG(tr.score), 0) AS averageScore,
+            COUNT(DISTINCT tr.id) AS attemptsCount,
             COALESCE(
-                COUNT(*) FILTER (WHERE tr.passed = true) * 100.0
-                / NULLIF(COUNT(*), 0),
+                SUM(tsa.earned_points) * 100.0 / NULLIF(SUM(q.points), 0),
+                0
+            ) AS averageScore,
+            COALESCE(
+                COUNT(DISTINCT tr.id) FILTER (
+                    WHERE tr.percentage >= 70
+                ) * 100.0 / NULLIF(COUNT(DISTINCT tr.id), 0),
                 0
             ) AS passRate
-        FROM test_results tr
-        JOIN tests t ON tr.test_id = t.id
-        JOIN test_labels tl ON tl.test_id = t.id
-        JOIN labels l ON l.id = tl.label_id
+        FROM test_submitted_answers tsa
+        JOIN test_results tr ON tr.id = tsa.test_result_id
+        JOIN questions q ON q.id = tsa.question_id
+        JOIN question_labels ql ON ql.question_id = q.id
+        JOIN labels l ON l.id = ql.label_id
         GROUP BY l.id, l.name
         ORDER BY averageScore ASC
         """, nativeQuery = true)
@@ -68,20 +73,23 @@ public interface TestAnalyticsRepository
         SELECT
             l.id AS labelId,
             l.name AS labelName,
-            COALESCE(AVG(tr.score), 0) AS averageScore,
-            COUNT(tr.id) AS attemptsCount
-        FROM test_results tr
-        JOIN tests t
-            ON tr.test_id = t.id
-        JOIN test_labels tl
-            ON tl.test_id = t.id
-        JOIN labels l
-            ON l.id = tl.label_id
+            COALESCE(
+                SUM(tsa.earned_points) * 100.0 / NULLIF(SUM(q.points), 0),
+                0
+            ) AS averageScore,
+            COUNT(DISTINCT tr.id) AS attemptsCount
+        FROM test_submitted_answers tsa
+        JOIN test_results tr ON tr.id = tsa.test_result_id
+        JOIN questions q ON q.id = tsa.question_id
+        JOIN question_labels ql ON ql.question_id = q.id
+        JOIN labels l ON l.id = ql.label_id
         WHERE tr.cadet_id = :cadetId
         GROUP BY l.id, l.name
-        HAVING AVG(tr.score) < 60
+        HAVING COALESCE(
+            SUM(tsa.earned_points) * 100.0 / NULLIF(SUM(q.points), 0),
+            0
+        ) < 70
         ORDER BY averageScore ASC
         """, nativeQuery = true)
-    List<WeakLabelAnalyticsProjection>
-    getWeakLabelsByCadet(Long cadetId);
+    List<WeakLabelAnalyticsProjection> getWeakLabelsByCadet(Long cadetId);
 }

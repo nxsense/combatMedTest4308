@@ -6,6 +6,7 @@ import java.util.Set;
 public record CreateTestRequest(
         String title,
         String description,
+        String difficulty,
         Set<Long> labelIds,
         List<CreateQuestionRequest> questions
 ) {

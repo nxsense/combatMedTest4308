@@ -137,8 +137,12 @@ public class AuthService {
             cadet.setFirstName(user.getUsername());
             cadet.setLastName("");
             cadet.setRank("");
-            cadet.setServiceNumber("");
+            cadet.setServiceNumber(generateServiceNumber(user));
             cadetRepository.save(cadet);
         }
+    }
+
+    private String generateServiceNumber(User user) {
+        return "CM-" + user.getId();
     }
 }
