@@ -53,7 +53,7 @@ public class PracticalService {
         }
 
         if (p < 75) {
-            return "PASS";
+            return "PASSED";
         }
 
         if (p < 90) {

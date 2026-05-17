@@ -50,8 +50,11 @@ export interface SubmitPracticalResultRequest {
 export interface PracticalResultResponse {
     id?: number
     skillId?: number
+    skillName?: string
     cadetId?: number
+    cadetName?: string
     instructorId?: number
+    instructorName?: string
     totalScore?: number
     maxScore?: number
     percentage?: number

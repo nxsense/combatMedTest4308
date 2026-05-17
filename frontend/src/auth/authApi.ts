@@ -10,3 +10,15 @@ export async function register(data: RegisterRequest): Promise<AuthResponse> {
     const response = await api.post<AuthResponse>('/auth/register', data)
     return response.data
 }
+export interface CurrentUserResponse {
+    userId: number
+    username: string
+    email: string
+    role: string
+    cadetId: number | null
+    instructorId: number | null
+}
+export async function getCurrentUser(): Promise<CurrentUserResponse> {
+    const response = await api.get<CurrentUserResponse>('/auth/me')
+    return response.data
+}

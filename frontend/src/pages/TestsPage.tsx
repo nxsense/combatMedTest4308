@@ -1,12 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import { canManageTests } from '../auth/authRole'
-import { createLabel, createTest, getLabels, getTests } from '../features/tests/testApi'
+import {
+    createLabel,
+    createTest,
+    getLabels,
+    getTests,
+    submitTest,
+} from '../features/tests/testApi'
 import type {
     CreateQuestionRequest,
     CreateTestRequest,
     LabelResponse,
+    QuestionResponse,
     TestResponse,
+    TestResultResponse,
 } from '../types/test'
+
+import { getCurrentUser } from '../features/auth/authApi'
 
 function createDefaultQuestion(order: number): CreateQuestionRequest {
     return {
@@ -39,19 +49,48 @@ function createDefaultForm(): CreateTestRequest {
     }
 }
 
+function getResultPercentage(result: TestResultResponse | null) {
+    if (!result) return '0.00'
+
+    if (typeof result.percentage === 'number') {
+        return result.percentage.toFixed(2)
+    }
+
+    return Number(result.percentage ?? 0).toFixed(2)
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+    if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { message?: string } } }
+        return axiosError.response?.data?.message || fallback
+    }
+
+    return fallback
+}
+
 export default function TestsPage() {
     const [tests, setTests] = useState<TestResponse[]>([])
     const [labels, setLabels] = useState<LabelResponse[]>([])
     const [loading, setLoading] = useState(true)
     const [labelsLoading, setLabelsLoading] = useState(true)
     const [creating, setCreating] = useState(false)
+    const [submitting, setSubmitting] = useState(false)
     const [showCreateForm, setShowCreateForm] = useState(false)
     const [error, setError] = useState('')
+
+    const [selectedTest, setSelectedTest] = useState<TestResponse | null>(null)
+    const [cadetId, setCadetId] = useState('')
+    const [currentRole, setCurrentRole] = useState('')
+    const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({})
+    const [testResult, setTestResult] = useState<TestResultResponse | null>(null)
+
     const [form, setForm] = useState<CreateTestRequest>(createDefaultForm())
+
     const [labelForm, setLabelForm] = useState({
         name: '',
         criticality: 1,
     })
+
     const [creatingLabel, setCreatingLabel] = useState(false)
 
     const allowTestManagement = canManageTests()
@@ -59,39 +98,20 @@ export default function TestsPage() {
     useEffect(() => {
         loadTests()
         loadLabels()
+        loadCurrentUser()
     }, [])
 
-    async function handleCreateLabel() {
-        setError('')
-
-        if (!allowTestManagement) {
-            setError('Only instructors and admins can create labels')
-            return
-        }
-
-        if (!labelForm.name.trim()) {
-            setError('Label name is required')
-            return
-        }
-
+    async function loadCurrentUser() {
         try {
-            setCreatingLabel(true)
+            const user = await getCurrentUser()
+            console.log('Current user:', user)
+            setCurrentRole(user.role)
 
-            const created = await createLabel({
-                name: labelForm.name.trim(),
-                criticality: labelForm.criticality,
-            })
-
-            setLabels((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
-            setLabelForm({
-                name: '',
-                criticality: 1,
-            })
+            if (user.cadetId) {
+                setCadetId(String(user.cadetId))
+            }
         } catch (error) {
             console.error(error)
-            setError('Failed to create label')
-        } finally {
-            setCreatingLabel(false)
         }
     }
 
@@ -99,11 +119,12 @@ export default function TestsPage() {
         try {
             setLoading(true)
             setError('')
+
             const data = await getTests()
             setTests(data)
         } catch (error) {
             console.error(error)
-            setError('Failed to load tests')
+            setError(getErrorMessage(error, 'Failed to load tests'))
         } finally {
             setLoading(false)
         }
@@ -112,6 +133,7 @@ export default function TestsPage() {
     async function loadLabels() {
         try {
             setLabelsLoading(true)
+
             const data = await getLabels()
             setLabels(data)
         } catch (error) {
@@ -122,12 +144,83 @@ export default function TestsPage() {
     }
 
     const selectedTestLabelIds = useMemo(() => {
-        return Array.from(
-            new Set(
-                form.questions.flatMap((question) => question.labelIds),
-            ),
-        )
+        return Array.from(new Set(form.questions.flatMap((question) => question.labelIds)))
     }, [form.questions])
+
+    function openTest(test: TestResponse) {
+        console.log('Opening test:', test)
+
+        if (!test.questions || test.questions.length === 0) {
+            setError('This test has no questions.')
+            return
+        }
+
+        setSelectedTest(test)
+        setSelectedAnswers({})
+        setTestResult(null)
+        setShowCreateForm(false)
+        setError('')
+
+        window.scrollTo({
+            top: 0,
+            behavior: 'smooth',
+        })
+    }
+
+    function closeTest() {
+        setSelectedTest(null)
+        setSelectedAnswers({})
+        setTestResult(null)
+        setError('')
+    }
+
+    function selectAnswer(questionId: number, answerId: number) {
+        setSelectedAnswers((prev) => ({
+            ...prev,
+            [questionId]: answerId,
+        }))
+    }
+
+    async function handleSubmitTest() {
+        if (!selectedTest) return
+
+        setError('')
+
+        const cadetIdNumber = Number(cadetId)
+
+        if (!Number.isFinite(cadetIdNumber) || cadetIdNumber <= 0) {
+            setError('Current user is not linked to a cadet profile')
+            return
+        }
+
+        const unansweredQuestions = (selectedTest.questions ?? []).filter(
+            (question) => !selectedAnswers[question.id],
+        )
+
+        if (unansweredQuestions.length > 0) {
+            setError('Please answer all questions before submitting')
+            return
+        }
+
+        try {
+            setSubmitting(true)
+
+            const result = await submitTest(selectedTest.id, {
+                cadetId: cadetIdNumber,
+                answers: selectedTest.questions.map((question) => ({
+                    questionId: question.id,
+                    answerId: selectedAnswers[question.id],
+                })),
+            })
+
+            setTestResult(result)
+        } catch (error) {
+            console.error(error)
+            setError(getErrorMessage(error, 'Failed to submit test'))
+        } finally {
+            setSubmitting(false)
+        }
+    }
 
     function updateQuestion<K extends keyof CreateQuestionRequest>(
         questionIndex: number,
@@ -250,6 +343,41 @@ export default function TestsPage() {
         }))
     }
 
+    async function handleCreateLabel() {
+        setError('')
+
+        if (!allowTestManagement) {
+            setError('Only instructors and admins can create labels')
+            return
+        }
+
+        if (!labelForm.name.trim()) {
+            setError('Label name is required')
+            return
+        }
+
+        try {
+            setCreatingLabel(true)
+
+            const created = await createLabel({
+                name: labelForm.name.trim(),
+                criticality: labelForm.criticality,
+            })
+
+            setLabels((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
+
+            setLabelForm({
+                name: '',
+                criticality: 1,
+            })
+        } catch (error) {
+            console.error(error)
+            setError(getErrorMessage(error, 'Failed to create label'))
+        } finally {
+            setCreatingLabel(false)
+        }
+    }
+
     async function handleCreateTest() {
         setError('')
 
@@ -314,7 +442,7 @@ export default function TestsPage() {
             setForm(createDefaultForm())
         } catch (error) {
             console.error(error)
-            setError('Failed to create test')
+            setError(getErrorMessage(error, 'Failed to create test'))
         } finally {
             setCreating(false)
         }
@@ -333,7 +461,10 @@ export default function TestsPage() {
                 {allowTestManagement && (
                     <button
                         type="button"
-                        onClick={() => setShowCreateForm((prev) => !prev)}
+                        onClick={() => {
+                            setSelectedTest(null)
+                            setShowCreateForm((prev) => !prev)
+                        }}
                         className="rounded-xl bg-red-600 px-5 py-3 font-semibold text-white transition hover:bg-red-500"
                     >
                         {showCreateForm ? 'Close Form' : 'Create Test'}
@@ -347,7 +478,134 @@ export default function TestsPage() {
                 </div>
             )}
 
-            {allowTestManagement && showCreateForm && (
+            {selectedTest && (
+                <section className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5 shadow-lg">
+                    <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div>
+                            <p className="text-xs uppercase tracking-wide text-red-400">Open Test</p>
+                            <h2 className="mt-2 text-2xl font-bold text-white">{selectedTest.title}</h2>
+                            <p className="mt-2 text-sm text-zinc-400">{selectedTest.description}</p>
+                            <p className="mt-2 text-sm text-zinc-500">
+                                Max score: {selectedTest.maxScore} · Questions:{' '}
+                                {selectedTest.questions?.length ?? 0}
+                            </p>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={closeTest}
+                            className="rounded-xl border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 transition hover:bg-zinc-800"
+                        >
+                            Close
+                        </button>
+                    </div>
+
+                    <div className="mb-5 max-w-xs">
+                        <label className="mb-2 block text-sm text-zinc-300">Cadet ID</label>
+
+                        <input
+                            value={cadetId}
+                            onChange={(event) => setCadetId(event.target.value)}
+                            disabled={currentRole === 'COMBAT MEDIC' || currentRole === 'CADET'}
+                            placeholder={
+                                currentRole === 'INSTRUCTOR' || currentRole === 'ADMIN'
+                                    ? 'Enter cadet ID'
+                                    : 'Loaded from current session'
+                            }
+                            className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-red-500 disabled:text-zinc-400 disabled:opacity-80"
+                        />
+
+                        <p className="mt-2 text-xs text-zinc-500">
+                            {currentRole === 'INSTRUCTOR' || currentRole === 'ADMIN'
+                                ? 'Instructor/admin can enter a cadet ID manually.'
+                                : 'Cadet ID is loaded automatically from the current session.'}
+                        </p>
+                    </div>
+
+                    <div className="space-y-4">
+                        {(selectedTest.questions ?? []).map((question: QuestionResponse, questionIndex) => (
+                            <div
+                                key={question.id}
+                                className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4"
+                            >
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div>
+                                        <p className="text-sm text-zinc-500">
+                                            Question #{questionIndex + 1} · {question.points} pts
+                                        </p>
+                                        <h3 className="mt-2 text-lg font-semibold text-white">
+                                            {question.questionText}
+                                        </h3>
+                                    </div>
+
+                                    <div className="flex flex-wrap gap-2">
+                                        {question.labels?.map((label) => (
+                                            <span
+                                                key={label}
+                                                className="rounded-full border border-zinc-700 bg-zinc-900 px-3 py-1 text-xs text-zinc-300"
+                                            >
+                        {label}
+                      </span>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="mt-4 space-y-3">
+                                    {question.answers.map((answer) => (
+                                        <label
+                                            key={answer.id}
+                                            className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm transition ${
+                                                selectedAnswers[question.id] === answer.id
+                                                    ? 'border-red-800 bg-red-950/30 text-red-100'
+                                                    : 'border-zinc-800 bg-zinc-900 text-zinc-300 hover:bg-zinc-800'
+                                            }`}
+                                        >
+                                            <input
+                                                type="radio"
+                                                name={`question-${question.id}`}
+                                                checked={selectedAnswers[question.id] === answer.id}
+                                                onChange={() => selectAnswer(question.id, answer.id)}
+                                            />
+                                            {answer.answerText}
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {!testResult && (
+                        <button
+                            type="button"
+                            onClick={handleSubmitTest}
+                            disabled={submitting}
+                            className="mt-6 rounded-xl bg-red-600 px-5 py-3 font-semibold text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            {submitting ? 'Submitting...' : 'Submit Test'}
+                        </button>
+                    )}
+
+                    {testResult && (
+                        <div
+                            className={`mt-6 rounded-2xl border p-5 ${
+                                testResult.passed
+                                    ? 'border-emerald-900 bg-emerald-950/30 text-emerald-100'
+                                    : 'border-red-900 bg-red-950/30 text-red-100'
+                            }`}
+                        >
+                            <h3 className="text-xl font-bold">
+                                {testResult.passed ? 'Test Passed' : 'Test Failed'}
+                            </h3>
+                            <p className="mt-2">
+                                Score: {testResult.score} / {testResult.maxScore}
+                            </p>
+                            <p className="mt-1">Percentage: {getResultPercentage(testResult)}%</p>
+                        </div>
+                    )}
+                </section>
+            )}
+
+            {allowTestManagement && showCreateForm && !selectedTest && (
                 <section className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5 shadow-lg">
                     <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div>
@@ -412,6 +670,76 @@ export default function TestsPage() {
                                 }
                                 className="min-h-20 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-red-500"
                             />
+                        </div>
+                    </div>
+
+                    <div className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                            <div>
+                                <h3 className="text-lg font-semibold text-white">Label Management</h3>
+                                <p className="mt-1 text-sm text-zinc-500">
+                                    Create topic labels and attach them to individual questions.
+                                </p>
+                            </div>
+
+                            <div className="grid flex-1 gap-3 md:max-w-xl md:grid-cols-[1fr_140px_auto]">
+                                <div>
+                                    <label className="mb-2 block text-sm text-zinc-300">Label name</label>
+                                    <input
+                                        value={labelForm.name}
+                                        onChange={(event) =>
+                                            setLabelForm((prev) => ({
+                                                ...prev,
+                                                name: event.target.value,
+                                            }))
+                                        }
+                                        placeholder="Airway Management"
+                                        className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-red-500"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="mb-2 block text-sm text-zinc-300">Criticality</label>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        max={10}
+                                        step={0.1}
+                                        value={labelForm.criticality}
+                                        onChange={(event) =>
+                                            setLabelForm((prev) => ({
+                                                ...prev,
+                                                criticality: Number(event.target.value),
+                                            }))
+                                        }
+                                        className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-red-500"
+                                    />
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={handleCreateLabel}
+                                    disabled={creatingLabel}
+                                    className="rounded-xl border border-zinc-700 px-4 py-3 font-semibold text-zinc-200 transition hover:bg-zinc-800 disabled:opacity-60"
+                                >
+                                    {creatingLabel ? 'Adding...' : 'Add Label'}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="mt-4 flex flex-wrap gap-2">
+                            {labels.length === 0 ? (
+                                <span className="text-sm text-zinc-500">No labels yet.</span>
+                            ) : (
+                                labels.map((label) => (
+                                    <span
+                                        key={label.id}
+                                        className="rounded-full border border-zinc-700 bg-zinc-900 px-3 py-1 text-xs text-zinc-300"
+                                    >
+                    {label.name} · {label.criticality ?? 1}
+                  </span>
+                                ))
+                            )}
                         </div>
                     </div>
 
@@ -506,7 +834,7 @@ export default function TestsPage() {
                                         <p className="text-sm text-zinc-500">Loading labels...</p>
                                     ) : labels.length === 0 ? (
                                         <p className="rounded-xl border border-yellow-900 bg-yellow-950/20 p-3 text-sm text-yellow-200">
-                                            No labels found. Add labels in database or create label management later.
+                                            No labels found. Add labels in Label Management.
                                         </p>
                                     ) : (
                                         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -596,125 +924,59 @@ export default function TestsPage() {
                 </section>
             )}
 
-            <div className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
-                <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                    <div>
-                        <h3 className="text-lg font-semibold text-white">Label Management</h3>
-                        <p className="mt-1 text-sm text-zinc-500">
-                            Create topic labels and attach them to individual questions.
-                        </p>
-                    </div>
+            {!selectedTest && (
+                <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {loading && <p className="text-zinc-300">Loading tests...</p>}
 
-                    <div className="grid flex-1 gap-3 md:max-w-xl md:grid-cols-[1fr_140px_auto]">
-                        <div>
-                            <label className="mb-2 block text-sm text-zinc-300">Label name</label>
-                            <input
-                                value={labelForm.name}
-                                onChange={(event) =>
-                                    setLabelForm((prev) => ({
-                                        ...prev,
-                                        name: event.target.value,
-                                    }))
-                                }
-                                placeholder="Airway Management"
-                                className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-red-500"
-                            />
+                    {!loading && tests.length === 0 && (
+                        <div className="rounded-2xl border border-dashed border-zinc-800 bg-zinc-900/40 p-8 text-center md:col-span-2 xl:col-span-3">
+                            <h2 className="text-xl font-semibold text-white">No tests found</h2>
+                            <p className="mt-2 text-zinc-400">Create the first TCCC knowledge test.</p>
                         </div>
-
-                        <div>
-                            <label className="mb-2 block text-sm text-zinc-300">Criticality</label>
-                            <input
-                                type="number"
-                                min={0}
-                                max={10}
-                                step={0.1}
-                                value={labelForm.criticality}
-                                onChange={(event) =>
-                                    setLabelForm((prev) => ({
-                                        ...prev,
-                                        criticality: Number(event.target.value),
-                                    }))
-                                }
-                                className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-red-500"
-                            />
-                        </div>
-
-                        <button
-                            type="button"
-                            onClick={handleCreateLabel}
-                            disabled={creatingLabel}
-                            className="rounded-xl border border-zinc-700 px-4 py-3 font-semibold text-zinc-200 transition hover:bg-zinc-800 disabled:opacity-60"
-                        >
-                            {creatingLabel ? 'Adding...' : 'Add Label'}
-                        </button>
-                    </div>
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                    {labels.length === 0 ? (
-                        <span className="text-sm text-zinc-500">No labels yet.</span>
-                    ) : (
-                        labels.map((label) => (
-                            <span
-                                key={label.id}
-                                className="rounded-full border border-zinc-700 bg-zinc-900 px-3 py-1 text-xs text-zinc-300"
-                            >
-          {label.name} · {label.criticality ?? 1}
-        </span>
-                        ))
                     )}
-                </div>
-            </div>
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {loading && <p className="text-zinc-300">Loading tests...</p>}
 
-                {!loading && tests.length === 0 && (
-                    <div className="rounded-2xl border border-dashed border-zinc-800 bg-zinc-900/40 p-8 text-center md:col-span-2 xl:col-span-3">
-                        <h2 className="text-xl font-semibold text-white">No tests found</h2>
-                        <p className="mt-2 text-zinc-400">Create the first TCCC knowledge test.</p>
-                    </div>
-                )}
+                    {tests.map((test) => (
+                        <article
+                            key={test.id}
+                            className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5 shadow-lg"
+                        >
+                            <div className="flex items-start justify-between gap-4">
+                                <div>
+                                    <h2 className="text-xl font-semibold text-white">{test.title}</h2>
+                                    <p className="mt-2 text-sm text-zinc-400">{test.description}</p>
+                                </div>
 
-                {tests.map((test) => (
-                    <article
-                        key={test.id}
-                        className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5 shadow-lg"
-                    >
-                        <div className="flex items-start justify-between gap-4">
-                            <div>
-                                <h2 className="text-xl font-semibold text-white">{test.title}</h2>
-                                <p className="mt-2 text-sm text-zinc-400">{test.description}</p>
+                                <span className="rounded-full bg-red-950/60 px-3 py-1 text-xs font-semibold text-red-300">
+                  {test.maxScore} pts
+                </span>
                             </div>
 
-                            <span className="rounded-full bg-red-950/60 px-3 py-1 text-xs font-semibold text-red-300">
-                {test.maxScore} pts
-              </span>
-                        </div>
+                            <div className="mt-4 flex flex-wrap gap-2">
+                                {test.labels?.map((label) => (
+                                    <span
+                                        key={label}
+                                        className="rounded-full border border-zinc-800 bg-zinc-950 px-3 py-1 text-xs text-zinc-400"
+                                    >
+                    {label}
+                  </span>
+                                ))}
+                            </div>
 
-                        <div className="mt-4 flex flex-wrap gap-2">
-                            {test.labels?.map((label) => (
-                                <span
-                                    key={label}
-                                    className="rounded-full border border-zinc-800 bg-zinc-950 px-3 py-1 text-xs text-zinc-400"
-                                >
-                  {label}
-                </span>
-                            ))}
-                        </div>
+                            <p className="mt-4 text-sm text-zinc-500">
+                                Questions: {test.questions?.length ?? 0}
+                            </p>
 
-                        <p className="mt-4 text-sm text-zinc-500">
-                            Questions: {test.questions?.length ?? 0}
-                        </p>
-
-                        <button
-                            type="button"
-                            className="mt-5 w-full rounded-xl border border-zinc-700 px-4 py-3 font-semibold text-zinc-200 transition hover:bg-zinc-800"
-                        >
-                            Open Test
-                        </button>
-                    </article>
-                ))}
-            </section>
+                            <button
+                                type="button"
+                                onClick={() => openTest(test)}
+                                className="mt-5 w-full rounded-xl border border-zinc-700 px-4 py-3 font-semibold text-zinc-200 transition hover:bg-zinc-800"
+                            >
+                                Open Test
+                            </button>
+                        </article>
+                    ))}
+                </section>
+            )}
         </div>
     )
 }

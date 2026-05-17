@@ -18,14 +18,14 @@ public interface PracticalAnalyticsRepository
                 COUNT(*) AS totalEvaluations,
                 COALESCE(AVG(pr.percentage), 0) AS averageScore,
                 COUNT(*) FILTER (
-                    WHERE pr.result_status = 'PASSED'
+                    WHERE pr.result_status IN ('PASSED', 'GOOD', 'EXCELLENT')
                 ) AS passedCount,
                 COUNT(*) FILTER (
                     WHERE pr.result_status = 'FAILED'
                 ) AS failedCount,
                 COALESCE(
                     COUNT(*) FILTER (
-                        WHERE pr.result_status = 'PASSED'
+                        WHERE pr.result_status IN ('PASSED', 'GOOD', 'EXCELLENT')
                     ) * 100.0
                     / NULLIF(COUNT(*), 0),
                     0
@@ -39,14 +39,14 @@ public interface PracticalAnalyticsRepository
                 COUNT(*) AS totalEvaluations,
                 COALESCE(AVG(pr.percentage), 0) AS averageScore,
                 COUNT(*) FILTER (
-                    WHERE pr.result_status = 'PASSED'
+                    WHERE pr.result_status IN ('PASSED', 'GOOD', 'EXCELLENT')
                 ) AS passedCount,
                 COUNT(*) FILTER (
                     WHERE pr.result_status = 'FAILED'
                 ) AS failedCount,
                 COALESCE(
                     COUNT(*) FILTER (
-                        WHERE pr.result_status = 'PASSED'
+                       WHERE pr.result_status IN ('PASSED', 'GOOD', 'EXCELLENT')
                     ) * 100.0
                     / NULLIF(COUNT(*), 0),
                     0
@@ -66,7 +66,7 @@ public interface PracticalAnalyticsRepository
                 COALESCE(AVG(pr.percentage), 0) AS averageScore,
                 COALESCE(
                     COUNT(*) FILTER (
-                        WHERE pr.result_status = 'PASSED'
+                        WHERE pr.result_status IN ('PASSED', 'GOOD', 'EXCELLENT')
                     ) * 100.0
                     / NULLIF(COUNT(*), 0),
                     0

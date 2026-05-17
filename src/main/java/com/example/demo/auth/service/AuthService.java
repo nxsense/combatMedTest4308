@@ -1,6 +1,7 @@
 package com.example.demo.auth.service;
 
 import com.example.demo.auth.dto.AuthResponse;
+import com.example.demo.auth.dto.CurrentUserResponse;
 import com.example.demo.auth.dto.LoginRequest;
 import com.example.demo.auth.dto.RegisterRequest;
 import com.example.demo.role.entity.Role;
@@ -91,6 +92,27 @@ public class AuthService {
         return new AuthResponse(token);
     }
 
+    public CurrentUserResponse getCurrentUser(String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        Long cadetId = cadetRepository.findByUserId(user.getId())
+                .map(Cadet::getId)
+                .orElse(null);
+
+        Long instructorId = instructorRepository.findByUserId(user.getId())
+                .map(Instructor::getId)
+                .orElse(null);
+
+        return new CurrentUserResponse(
+                user.getId(),
+                user.getUsername(),
+                user.getEmail(),
+                user.getRole().getName(),
+                cadetId,
+                instructorId
+        );
+    }
     private void validateRegisterRequest(RegisterRequest request) {
         if (request.username() == null || request.username().isBlank()) {
             throw new IllegalArgumentException("Username is required");

@@ -146,7 +146,7 @@ export default function AnalyticsPage() {
                 />
                 <StatCard
                     title="Practical Labels"
-                    value={data.practicalLabels.length}
+                    value={labels.length}
                     subtitle="Skill categories tracked"
                 />
             </section>

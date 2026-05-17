@@ -1,10 +1,13 @@
 package com.example.demo.auth.controller;
 
 import com.example.demo.auth.dto.AuthResponse;
+import com.example.demo.auth.dto.CurrentUserResponse;
 import com.example.demo.auth.dto.LoginRequest;
 import com.example.demo.auth.dto.RegisterRequest;
 import com.example.demo.auth.service.AuthService;
+
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -22,5 +25,10 @@ public class AuthController {
     @PostMapping("/register")
     public AuthResponse register(@RequestBody RegisterRequest request) {
         return authService.register(request);
+    }
+
+    @GetMapping("/me")
+    public CurrentUserResponse me(Authentication authentication) {
+        return authService.getCurrentUser(authentication.getName());
     }
 }

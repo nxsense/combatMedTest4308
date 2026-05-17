@@ -1,4 +1,4 @@
-export type UserRole = 'CADET' | 'INSTRUCTOR' | 'ADMIN'
+export type UserRole = 'CADET' | 'COMBAT MEDIC' | 'INSTRUCTOR' | 'ADMIN' | 'ANALYST'
 
 type JwtPayload = {
     sub?: string
@@ -25,8 +25,14 @@ export function getCurrentUserRole(): UserRole | null {
 
         const role = payload.role?.replace('ROLE_', '').toUpperCase()
 
-        if (role === 'CADET' || role === 'INSTRUCTOR' || role === 'ADMIN') {
-            return role
+        if (
+            role === 'CADET' ||
+            role === 'COMBAT MEDIC' ||
+            role === 'INSTRUCTOR' ||
+            role === 'ADMIN' ||
+            role === 'ANALYST'
+        ) {
+            return role as UserRole
         }
 
         return null
@@ -35,7 +41,16 @@ export function getCurrentUserRole(): UserRole | null {
     }
 }
 
+export function isCadetRole(role: UserRole | null) {
+    return role === 'CADET' || role === 'COMBAT MEDIC'
+}
+
 export function canManageTests() {
     const role = getCurrentUserRole()
     return role === 'INSTRUCTOR' || role === 'ADMIN'
+}
+
+export function canViewGlobalAnalytics() {
+    const role = getCurrentUserRole()
+    return role === 'INSTRUCTOR' || role === 'ADMIN' || role === 'ANALYST'
 }
