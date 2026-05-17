@@ -16,6 +16,10 @@ import com.example.demo.practical.repository.PracticalSkillRepository;
 import com.example.demo.practical.repository.PracticalStepRepository;
 import com.example.demo.test.entity.Label;
 import com.example.demo.test.repository.LabelRepository;
+import com.example.demo.practical.dto.PracticalSkillResponse;
+import com.example.demo.practical.dto.PracticalStepResponse;
+import java.util.Comparator;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,7 +27,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -39,22 +48,75 @@ public class PracticalService {
     private String resolveStatus(BigDecimal percentage) {
         double p = percentage.doubleValue();
 
-        if (p < 60) return "FAILED";
-        if (p < 75) return "PASS";
-        if (p < 90) return "GOOD";
+        if (p < 60) {
+            return "FAILED";
+        }
+
+        if (p < 75) {
+            return "PASS";
+        }
+
+        if (p < 90) {
+            return "GOOD";
+        }
+
         return "EXCELLENT";
     }
+
+    @Transactional
+    public PracticalSkillResponse createSkill(CreatePracticalSkillRequest request) {
+        validateCreateRequest(request);
+
+        PracticalSkill skill = new PracticalSkill();
+        skill.setName(request.name().trim());
+        skill.setDescription(request.description().trim());
+
+        Set<Label> labels = new HashSet<>();
+
+        if (request.labelIds() != null && !request.labelIds().isEmpty()) {
+            labels.addAll(labelRepository.findAllById(request.labelIds()));
+        }
+
+        skill.setLabels(labels);
+
+        List<PracticalStep> steps = request.steps()
+                .stream()
+                .map(stepRequest -> {
+                    PracticalStep step = new PracticalStep();
+
+                    step.setSkill(skill);
+                    step.setStepOrder(stepRequest.stepOrder());
+                    step.setStepName(stepRequest.title().trim());
+                    step.setDescription(stepRequest.description().trim());
+                    step.setCritical(Boolean.TRUE.equals(stepRequest.critical()));
+                    step.setMaxScore(Boolean.TRUE.equals(stepRequest.critical()) ? 20 : 10);
+
+                    return step;
+                })
+                .toList();
+
+        int maxScore = steps.stream()
+                .mapToInt(PracticalStep::getMaxScore)
+                .sum();
+
+        skill.setMaxScore(maxScore);
+        skill.setSteps(steps);
+
+        PracticalSkill saved = practicalSkillRepository.save(skill);
+
+        return toResponse(saved);
+    }
+
     @Transactional
     public void submit(SubmitPracticalResultRequest request) {
-
         PracticalSkill skill = practicalSkillRepository.findById(request.skillId())
-                .orElseThrow();
+                .orElseThrow(() -> new RuntimeException("Practical skill not found"));
 
         Cadet cadet = cadetRepository.findById(request.cadetId())
-                .orElseThrow();
+                .orElseThrow(() -> new RuntimeException("Cadet not found"));
 
         Instructor instructor = instructorRepository.findById(request.instructorId())
-                .orElseThrow();
+                .orElseThrow(() -> new RuntimeException("Instructor not found"));
 
         PracticalResult result = new PracticalResult();
         result.setSkill(skill);
@@ -63,93 +125,63 @@ public class PracticalService {
         result.setCompletedAt(LocalDateTime.now());
         result.setComment(request.comment());
 
-        List<PracticalStepEvaluation> evaluations = request.steps().stream()
-                .map(s -> {
-                    PracticalStep step = practicalStepRepository.findById(s.stepId())
-                            .orElseThrow();
+        List<PracticalStepEvaluation> evaluations = request.steps()
+                .stream()
+                .map(submittedStep -> {
+                    PracticalStep step = practicalStepRepository.findById(submittedStep.stepId())
+                            .orElseThrow(() -> new RuntimeException(
+                                    "Practical step not found: " + submittedStep.stepId()
+                            ));
 
-                    PracticalStepEvaluation eval = new PracticalStepEvaluation();
-                    eval.setResult(result);
-                    eval.setStep(step);
-                    eval.setStatus(s.status());
-                    eval.setScore(s.score());
-                    eval.setComment(s.comment());
-                    return eval;
+                    PracticalStepEvaluation evaluation = new PracticalStepEvaluation();
+                    evaluation.setResult(result);
+                    evaluation.setStep(step);
+                    evaluation.setStatus(submittedStep.status());
+                    evaluation.setScore(submittedStep.score());
+                    evaluation.setComment(submittedStep.comment());
+
+                    return evaluation;
                 })
                 .toList();
 
         int totalScore = evaluations.stream()
-                .mapToInt(PracticalStepEvaluation::getScore)
+                .mapToInt(evaluation -> evaluation.getScore() == null ? 0 : evaluation.getScore())
                 .sum();
 
-        int maxScore = skill.getSteps().stream()
-                .mapToInt(PracticalStep::getMaxScore)
+        int maxScore = skill.getSteps()
+                .stream()
+                .mapToInt(step -> step.getMaxScore() == null ? 0 : step.getMaxScore())
                 .sum();
 
-        BigDecimal percentage = BigDecimal.valueOf(totalScore)
-                .multiply(BigDecimal.valueOf(100))
-                .divide(BigDecimal.valueOf(maxScore), 2, RoundingMode.HALF_UP);
+        BigDecimal percentage = maxScore == 0
+                ? BigDecimal.ZERO
+                : BigDecimal.valueOf(totalScore)
+                  .multiply(BigDecimal.valueOf(100))
+                  .divide(BigDecimal.valueOf(maxScore), 2, RoundingMode.HALF_UP);
 
         result.setTotalScore(totalScore);
         result.setMaxScore(maxScore);
         result.setPercentage(percentage);
         result.setResultStatus(resolveStatus(percentage));
-
         result.setEvaluations(evaluations);
 
         practicalResultRepository.save(result);
     }
 
-    @Transactional
-    public void createSkill(CreatePracticalSkillRequest request) {
-
-        PracticalSkill skill = new PracticalSkill();
-        skill.setName(request.name());
-        skill.setDescription(request.description());
-        skill.setMaxScore(
-                request.steps()
-                        .stream()
-                        .mapToInt(step -> Boolean.TRUE.equals(step.critical()) ? 20 : 10)
-                        .sum());
-        // labels
-        Set<Label> labels = new HashSet<>(
-                labelRepository.findAllById(request.labelIds())
-        );
-        skill.setLabels(labels);
-
-        // steps
-        List<PracticalStep> steps = request.steps().stream()
-                .map(s -> {
-                    PracticalStep step = new PracticalStep();
-                    step.setSkill(skill);
-                    step.setStepOrder(s.stepOrder());
-                    step.setStepName(s.title());
-                    step.setDescription(s.description());
-                    step.setCritical(s.critical());
-                    step.setMaxScore(step.isCritical() ? 20:10);
-                    return step;
-                })
+    @Transactional(readOnly = true)
+    public List<PracticalSkillResponse> getAllSkills() {
+        return practicalSkillRepository.findAll()
+                .stream()
+                .map(this::toResponse)
                 .toList();
-
-        skill.setSteps(steps);
-
-        // maxScore рахуємо автоматично
-        int maxScore = steps.stream()
-                .mapToInt(PracticalStep::getMaxScore)
-                .sum();
-
-        skill.setMaxScore(maxScore);
-
-        practicalSkillRepository.save(skill);
     }
 
-    public List<PracticalSkill> getAllSkills() {
-        return practicalSkillRepository.findAll();
-    }
-
-    public PracticalSkill getSkillById(Long id) {
-        return practicalSkillRepository.findById(id)
+    @Transactional(readOnly = true)
+    public PracticalSkillResponse getSkillById(Long id) {
+        PracticalSkill skill = practicalSkillRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Practical skill not found"));
+
+        return toResponse(skill);
     }
 
     public List<PracticalResult> getAllResults() {
@@ -161,9 +193,7 @@ public class PracticalService {
     }
 
     public List<WeakLabelResponse> getWeakLabels(Long cadetId) {
-
-        List<PracticalResult> results =
-                practicalResultRepository.findByCadetId(cadetId);
+        List<PracticalResult> results = practicalResultRepository.findByCadetId(cadetId);
 
         Map<String, List<BigDecimal>> labelStats = new HashMap<>();
 
@@ -174,11 +204,17 @@ public class PracticalService {
             }
         }
 
-        return labelStats.entrySet().stream()
+        return labelStats.entrySet()
+                .stream()
                 .map(entry -> {
-                    BigDecimal avg = entry.getValue().stream()
+                    BigDecimal avg = entry.getValue()
+                            .stream()
                             .reduce(BigDecimal.ZERO, BigDecimal::add)
-                            .divide(BigDecimal.valueOf(entry.getValue().size()), 2, RoundingMode.HALF_UP);
+                            .divide(
+                                    BigDecimal.valueOf(entry.getValue().size()),
+                                    2,
+                                    RoundingMode.HALF_UP
+                            );
 
                     double priority = 1 - avg.doubleValue() / 100.0;
 
@@ -188,8 +224,75 @@ public class PracticalService {
                             priority
                     );
                 })
-                .filter(l -> l.averageScore() < 70)
+                .filter(label -> label.averageScore() < 70)
                 .sorted((a, b) -> Double.compare(b.priority(), a.priority()))
                 .toList();
+    }
+
+    private void validateCreateRequest(CreatePracticalSkillRequest request) {
+        if (request.name() == null || request.name().isBlank()) {
+            throw new IllegalArgumentException("Practical skill name is required");
+        }
+
+        if (request.description() == null || request.description().isBlank()) {
+            throw new IllegalArgumentException("Practical skill description is required");
+        }
+
+        if (request.steps() == null || request.steps().isEmpty()) {
+            throw new IllegalArgumentException("At least one practical step is required");
+        }
+
+        boolean invalidStep = request.steps()
+                .stream()
+                .anyMatch(step ->
+                        step.title() == null
+                                || step.title().isBlank()
+                                || step.description() == null
+                                || step.description().isBlank()
+                                || step.stepOrder() == null
+                                || step.stepOrder() <= 0
+                );
+
+        if (invalidStep) {
+            throw new IllegalArgumentException(
+                    "Each practical step must have title, description and valid order"
+            );
+        }
+    }
+
+    public PracticalSkillResponse toResponse(PracticalSkill skill) {
+        Set<String> labels = skill.getLabels() == null
+                ? Set.of()
+                : skill.getLabels()
+                  .stream()
+                  .map(Label::getName)
+                  .collect(Collectors.toSet());
+
+        List<PracticalStepResponse> steps = skill.getSteps() == null
+                ? List.of()
+                : skill.getSteps()
+                  .stream()
+                  .sorted(Comparator.comparing(
+                          PracticalStep::getStepOrder,
+                          Comparator.nullsLast(Integer::compareTo)
+                  ))
+                  .map(step -> new PracticalStepResponse(
+                          step.getId(),
+                          step.getStepName(),
+                          step.getDescription(),
+                          step.getStepOrder(),
+                          step.getCritical(),
+                          step.getMaxScore()
+                  ))
+                  .toList();
+
+        return new PracticalSkillResponse(
+                skill.getId(),
+                skill.getName(),
+                skill.getDescription(),
+                skill.getMaxScore(),
+                labels,
+                steps
+        );
     }
 }

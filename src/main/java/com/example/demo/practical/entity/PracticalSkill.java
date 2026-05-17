@@ -4,6 +4,7 @@ import com.example.demo.test.entity.Label;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -36,5 +37,5 @@ public class PracticalSkill {
     private Set<Label> labels = new HashSet<>();
 
     @OneToMany(mappedBy = "skill", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<PracticalStep> steps;
+    private List<PracticalStep> steps = new ArrayList<>();
 }

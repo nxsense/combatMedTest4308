@@ -31,5 +31,5 @@ public class PracticalStep {
     private Integer maxScore;
 
     @Column(name = "is_critical")
-    private boolean critical;
+    private Boolean critical = false;
 }
