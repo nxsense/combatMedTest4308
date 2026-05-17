@@ -11,6 +11,8 @@ import type {
     TestAnalytics,
     TestLabelAnalytics,
 } from '../types/analytics'
+import { getLabels } from '../features/tests/testApi'
+import type { LabelResponse } from '../types/test'
 
 type AnalyticsState = {
     tests: TestAnalytics
@@ -55,6 +57,7 @@ export default function AnalyticsPage() {
     const [data, setData] = useState<AnalyticsState | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
+    const [labels, setLabels] = useState<LabelResponse[]>([])
 
     useEffect(() => {
         Promise.all([
@@ -62,16 +65,14 @@ export default function AnalyticsPage() {
             getTestLabelAnalytics(),
             getPracticalAnalytics(),
             getPracticalLabelAnalytics(),
+            getLabels(),
         ])
-            .then(([tests, testLabels, practical, practicalLabels]) => {
+            .then(([tests, testLabels, practical, practicalLabels, labels]) => {
                 setData({ tests, testLabels, practical, practicalLabels })
+                setLabels(labels)
             })
-            .catch(() => {
-                setError('Failed to load analytics data')
-            })
-            .finally(() => {
-                setLoading(false)
-            })
+            .catch(() => setError('Failed to load analytics data'))
+            .finally(() => setLoading(false))
     }, [])
 
     const weakestTestLabels = useMemo(() => {
@@ -140,7 +141,7 @@ export default function AnalyticsPage() {
                 />
                 <StatCard
                     title="Test Labels"
-                    value={data.testLabels.length}
+                    value={labels.length}
                     subtitle="Knowledge areas tracked"
                 />
                 <StatCard

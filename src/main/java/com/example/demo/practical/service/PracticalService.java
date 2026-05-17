@@ -106,7 +106,11 @@ public class PracticalService {
         PracticalSkill skill = new PracticalSkill();
         skill.setName(request.name());
         skill.setDescription(request.description());
-
+        skill.setMaxScore(
+                request.steps()
+                        .stream()
+                        .mapToInt(step -> Boolean.TRUE.equals(step.critical()) ? 20 : 10)
+                        .sum());
         // labels
         Set<Label> labels = new HashSet<>(
                 labelRepository.findAllById(request.labelIds())
@@ -117,12 +121,12 @@ public class PracticalService {
         List<PracticalStep> steps = request.steps().stream()
                 .map(s -> {
                     PracticalStep step = new PracticalStep();
-                    step.setSkill(skill); // важливо!
-                    step.setStepOrder(s.order());
-                    step.setStepName(s.name());
+                    step.setSkill(skill);
+                    step.setStepOrder(s.stepOrder());
+                    step.setStepName(s.title());
                     step.setDescription(s.description());
-                    step.setMaxScore(s.maxScore());
                     step.setCritical(s.critical());
+                    step.setMaxScore(step.isCritical() ? 20:10);
                     return step;
                 })
                 .toList();

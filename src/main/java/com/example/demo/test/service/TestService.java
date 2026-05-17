@@ -5,10 +5,7 @@ import com.example.demo.cadet.repository.CadetRepository;
 import com.example.demo.config.RecommendationProperties;
 import com.example.demo.test.dto.*;
 import com.example.demo.test.entity.*;
-import com.example.demo.test.repository.AnswerRepository;
-import com.example.demo.test.repository.LabelRepository;
-import com.example.demo.test.repository.TestRepository;
-import com.example.demo.test.repository.TestResultRepository;
+import com.example.demo.test.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -28,12 +25,16 @@ public class TestService {
     private final AnswerRepository answerRepository;
     private final TestResultRepository testResultRepository;
     private final RecommendationProperties weights;
+    private final TestSubmittedAnswerRepository submittedAnswerRepository;
+    private final QuestionRepository questionRepository;
 
     public Test createTest(CreateTestRequest request) {
 
         Test test = new Test();
+
         test.setTitle(request.title());
         test.setDescription(request.description());
+        test.setDifficulty(normalizeDifficulty(request.difficulty()));
         test.setCreatedAt(LocalDateTime.now());
 
         // labels
@@ -51,14 +52,16 @@ public class TestService {
             question.setPoints(qReq.points());
             question.setQuestionOrder(qReq.questionOrder());
 
-            // answers
+            if (qReq.labelIds() != null && !qReq.labelIds().isEmpty()) {
+                question.setLabels(new HashSet<>(labelRepository.findAllById(qReq.labelIds())));
+            }
+
             for (CreateAnswerRequest aReq : qReq.answers()) {
                 Answer answer = new Answer();
                 answer.setQuestion(question);
                 answer.setAnswerText(aReq.answerText());
                 answer.setCorrect(aReq.correct());
                 answer.setAnswerOrder(aReq.answerOrder());
-
                 question.getAnswers().add(answer);
             }
 
@@ -102,7 +105,38 @@ public class TestService {
         result.setPassed(percentage.compareTo(BigDecimal.valueOf(70)) >= 0);
         result.setPassedAt(LocalDateTime.now());
 
-        return testResultRepository.save(result);
+        TestResult savedResult = testResultRepository.save(result);
+
+        List<TestSubmittedAnswer> submittedAnswers = request.answers()
+                .stream()
+                .map(submitted -> {
+                    Question question = questionRepository.findById(submitted.questionId())
+                            .orElseThrow(() -> new RuntimeException(
+                                    "Question not found: " + submitted.questionId()
+                            ));
+
+                    Answer answer = answerRepository.findById(submitted.answerId())
+                            .orElseThrow(() -> new RuntimeException(
+                                    "Answer not found: " + submitted.answerId()
+                            ));
+
+                    boolean correct = answer.isCorrect();
+                    int earnedPoints = correct ? question.getPoints() : 0;
+
+                    TestSubmittedAnswer submittedAnswer = new TestSubmittedAnswer();
+                    submittedAnswer.setTestResult(savedResult);
+                    submittedAnswer.setQuestion(question);
+                    submittedAnswer.setAnswer(answer);
+                    submittedAnswer.setCorrect(correct);
+                    submittedAnswer.setEarnedPoints(earnedPoints);
+
+                    return submittedAnswer;
+                })
+                .toList();
+
+        submittedAnswerRepository.saveAll(submittedAnswers);
+
+        return savedResult;
     }
 
     public TestResultResponse toResultResponse(TestResult result) {
@@ -130,13 +164,19 @@ public class TestService {
                 test.getLabels().stream()
                         .map(Label::getName)
                         .collect(Collectors.toSet()),
-                test.getQuestions().stream()
+                test.getQuestions()
+                        .stream()
                         .map(question -> new QuestionResponse(
                                 question.getId(),
                                 question.getQuestionText(),
                                 question.getPoints(),
                                 question.getQuestionOrder(),
-                                question.getAnswers().stream()
+                                question.getLabels()
+                                        .stream()
+                                        .map(Label::getName)
+                                        .collect(Collectors.toSet()),
+                                question.getAnswers()
+                                        .stream()
                                         .map(answer -> new AnswerResponse(
                                                 answer.getId(),
                                                 answer.getAnswerText(),
@@ -272,5 +312,19 @@ public class TestService {
         }
 
         return totalScore;
+    }
+
+    private String normalizeDifficulty(String difficulty) {
+        if (difficulty == null || difficulty.isBlank()) {
+            return "MEDIUM";
+        }
+
+        String normalized = difficulty.trim().toUpperCase();
+
+        if (!Set.of("EASY", "MEDIUM", "HARD").contains(normalized)) {
+            return "MEDIUM";
+        }
+
+        return normalized;
     }
 }

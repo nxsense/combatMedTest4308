@@ -7,6 +7,7 @@ import com.example.demo.practical.entity.PracticalResult;
 import com.example.demo.practical.entity.PracticalSkill;
 import com.example.demo.practical.service.PracticalService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -18,6 +19,7 @@ public class PracticalController {
 
     private final PracticalService practicalService;
 
+    @PreAuthorize("hasAnyRole('INSTRUCTOR', 'ADMIN')")
     @PostMapping("/skills")
     public void createSkill(@RequestBody CreatePracticalSkillRequest request) {
         practicalService.createSkill(request);

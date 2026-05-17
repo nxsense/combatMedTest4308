@@ -1,12 +1,12 @@
 package com.example.demo.test.controller;
 
 import com.example.demo.test.dto.*;
-import com.example.demo.test.entity.Test;
 import com.example.demo.test.entity.TestResult;
 import com.example.demo.test.repository.TestRepository;
 import com.example.demo.test.repository.TestResultRepository;
 import com.example.demo.test.service.TestService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -29,19 +29,23 @@ public class TestController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('INSTRUCTOR', 'ADMIN')")
     public TestResponse create(@RequestBody CreateTestRequest request) {
         return testService.toTestResponse(testService.createTest(request));
     }
 
     @PostMapping("/{testId}/submit")
-    public TestResult submit(
+    public TestResultResponse submit(
             @PathVariable Long testId,
             @RequestBody SubmitTestRequest request
     ) {
-        return testService.submitTest(testId, request);
+        TestResult result = testService.submitTest(testId, request);
+        return testService.toResultResponse(result);
     }
+
     @GetMapping("/results")
-    public List<TestResultResponse> getAllResults() {
+    @PreAuthorize("hasAnyRole('INSTRUCTOR', 'ADMIN')")
+    public List<?> getAllResults() {
         return testResultRepository.findAll()
                 .stream()
                 .map(testService::toResultResponse)
@@ -49,7 +53,7 @@ public class TestController {
     }
 
     @GetMapping("/results/cadet/{cadetId}")
-    public List<TestResultResponse> getResultsByCadet(@PathVariable Long cadetId) {
+    public List<?> getResultsByCadet(@PathVariable Long cadetId) {
         return testResultRepository.findByCadetId(cadetId)
                 .stream()
                 .map(testService::toResultResponse)
@@ -57,7 +61,8 @@ public class TestController {
     }
 
     @GetMapping("/results/test/{testId}")
-    public List<TestResultResponse> getResultsByTest(@PathVariable Long testId) {
+    @PreAuthorize("hasAnyRole('INSTRUCTOR', 'ADMIN')")
+    public List<?> getResultsByTest(@PathVariable Long testId) {
         return testResultRepository.findByTestId(testId)
                 .stream()
                 .map(testService::toResultResponse)
@@ -69,9 +74,8 @@ public class TestController {
         return testService.getCadetAnalytics(cadetId);
     }
 
-
     @GetMapping("/recommended/cadet/{cadetId}")
-    public List<RecommendedTestResponse> getRecommended(@PathVariable Long cadetId) {
+    public List<?> getRecommended(@PathVariable Long cadetId) {
         return testService.getRecommendedTests(cadetId);
     }
 }
